@@ -31,7 +31,6 @@ Preparing for an interview, a client meeting, or a networking call usually means
 ## Screenshot
 
 > <img width="1490" height="717" alt="image" src="https://github.com/user-attachments/assets/750a2f5c-d678-438d-a61e-8cf29818b155" />
-> `![Vantage dashboard](screenshot.png)`
 
 ## How it works
 
