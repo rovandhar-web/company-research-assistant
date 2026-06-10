@@ -4,7 +4,6 @@ from openai import OpenAI
 
 st.set_page_config(page_title="Vantage — Company Research", page_icon="📊", layout="centered")
 
-# ---------------- Dashboard styles ----------------
 DASHBOARD_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -15,10 +14,22 @@ html, body, [class*="css"], .stMarkdown, .stTextInput, .stTextArea, .stRadio {
 }
 .block-container {max-width: 940px; padding-top: 2rem; padding-bottom: 4rem;}
 
-.vh-header {display:flex; align-items:center; gap:0.6rem; margin-bottom:2.2rem;}
-.vh-logo {width:34px; height:34px; border-radius:9px; background:#34E0A1;}
+/* Brand header + logo */
+.vh-header {display:flex; align-items:center; gap:0.65rem; margin-bottom:2rem;}
+.vh-logo {width:38px; height:38px; border-radius:11px; background:#34E0A1; display:flex;
+    align-items:flex-end; justify-content:center; gap:3px; padding-bottom:9px;}
+.vh-logo span {width:4px; background:#06231A; border-radius:2px; display:block;}
+.vh-logo .b1 {height:8px;} .vh-logo .b2 {height:14px;} .vh-logo .b3 {height:20px;}
 .vh-brand {font-weight:800; font-size:1.2rem; color:#EAF2EF; letter-spacing:-0.01em;}
 
+/* Input intro */
+.vh-h2 {font-size:2.4rem; font-weight:800; letter-spacing:-0.035em; color:#EAF2EF; margin:0 0 0.5rem 0; line-height:1.05;}
+.vh-sub {color:#7C8B86; font-size:1.02rem; margin:0 0 1.4rem 0; max-width:560px; line-height:1.5;}
+.field-lbl {color:#7C8B86; font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; font-weight:600; margin-bottom:0.4rem;}
+.try-lbl {color:#5E6B66; font-size:0.85rem; padding-top:0.5rem;}
+.vh-help {color:#5E6B66; font-size:0.82rem; margin-top:0.6rem;}
+
+/* Brief header */
 .vh-eyebrow {display:flex; align-items:center; gap:0.5rem; color:#7C8B86; font-size:0.74rem;
     letter-spacing:0.16em; text-transform:uppercase; margin-bottom:0.7rem; font-weight:600;}
 .vh-dot {width:8px; height:8px; border-radius:50%; background:#34E0A1;}
@@ -60,7 +71,6 @@ html, body, [class*="css"], .stMarkdown, .stTextInput, .stTextArea, .stRadio {
 </style>
 """
 
-# --- API key ---
 try:
     api_key = st.secrets["OPENROUTER_API_KEY"]
 except Exception:
@@ -73,7 +83,6 @@ if not api_key:
 client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
 
 
-# ---------------- Helpers ----------------
 def extract_text_from_upload(file):
     name = file.name.lower()
     if name.endswith(".pdf"):
@@ -119,7 +128,6 @@ def fmt_int(n):
 
 
 def split_meta(text):
-    """Pull leading TICKER / TAGLINE / COMPETITORS lines out of the model output."""
     meta = {"ticker": None, "tagline": None, "competitors": []}
     keep = []
     header_zone = True
@@ -288,9 +296,6 @@ def build_dashboard_html(brief_md, meta, fin, fallback_name):
     import markdown as md
     fin = fin or {}
     parts = [DASHBOARD_CSS]
-
-    parts.append('<div class="vh-header"><div class="vh-logo"></div>'
-                 '<div class="vh-brand">Vantage</div></div>')
     parts.append('<div class="vh-eyebrow"><span class="vh-dot"></span>Intelligence Brief</div>')
 
     name = fin.get("name") or fallback_name
@@ -303,7 +308,6 @@ def build_dashboard_html(brief_md, meta, fin, fallback_name):
     if meta.get("tagline"):
         parts.append(f'<div class="vh-tagline">{html.escape(meta["tagline"])}</div>')
 
-    # Metric tiles
     mc, rev, gm, emp = fmt_money(fin.get("market_cap")), fmt_money(fin.get("revenue")), \
         fmt_pct(fin.get("gross_margin")), fmt_int(fin.get("employees"))
     if any([mc, rev, gm, emp]):
@@ -324,14 +328,13 @@ def build_dashboard_html(brief_md, meta, fin, fallback_name):
                      + tile("Employees", emp)
                      + '</div>')
 
-    # Charts (donut = gross margin, bars = revenue history)
     chart_blocks = []
     if fin.get("gross_margin") is not None:
         pct = float(fin["gross_margin"]) * 100
-        donut = (f'<div class="vh-chart"><div class="lbl">Profitability</div>'
-                 f'<div class="vh-donut" style="background: conic-gradient(#34E0A1 0% {pct:.0f}%, #1E2A26 {pct:.0f}% 100%);">'
-                 f'<div class="vh-hole"><div class="big">{pct:.1f}%</div><div class="sub">Gross margin</div></div></div></div>')
-        chart_blocks.append(donut)
+        chart_blocks.append(
+            f'<div class="vh-chart"><div class="lbl">Profitability</div>'
+            f'<div class="vh-donut" style="background: conic-gradient(#34E0A1 0% {pct:.0f}%, #1E2A26 {pct:.0f}% 100%);">'
+            f'<div class="vh-hole"><div class="big">{pct:.1f}%</div><div class="sub">Gross margin</div></div></div></div>')
     hist = fin.get("revenue_history") or []
     if len(hist) >= 2:
         maxv = max(v for _, v in hist) or 1
@@ -345,7 +348,6 @@ def build_dashboard_html(brief_md, meta, fin, fallback_name):
     if chart_blocks:
         parts.append('<div class="vh-charts">' + "".join(chart_blocks) + '</div>')
 
-    # Section cards
     cards = '<div class="vh-grid">'
     for title, body in parse_sections(brief_md):
         if "competitive" in title.lower() and meta.get("competitors"):
@@ -356,36 +358,87 @@ def build_dashboard_html(brief_md, meta, fin, fallback_name):
         cards += f'<div class="vh-card"><h3>{html.escape(title)}</h3>{inner}</div>'
     cards += '</div>'
     parts.append(cards)
-
-    parts.append('<div class="vh-foot">AI-generated · verify key facts. '
-                 'Financials via Yahoo Finance.</div>')
+    parts.append('<div class="vh-foot">AI-generated · verify key facts. Financials via Yahoo Finance.</div>')
     return "\n".join(parts)
 
 
 # ---------------- UI ----------------
 st.markdown(DASHBOARD_CSS, unsafe_allow_html=True)
-st.markdown('<div class="vh-header"><div class="vh-logo"></div>'
-            '<div class="vh-brand">Vantage</div></div>', unsafe_allow_html=True)
 
-mode = st.radio("What would you like to do?",
-                ["Research a company", "Analyze a job description"], horizontal=True)
+# Single brand header with a proper logo mark (ascending bars)
+st.markdown(
+    '<div class="vh-header"><div class="vh-logo"><span class="b1"></span><span class="b2"></span>'
+    '<span class="b3"></span></div><div class="vh-brand">Vantage</div></div>',
+    unsafe_allow_html=True,
+)
+
+# Intro
+st.markdown(
+    '<div class="vh-eyebrow"><span class="vh-dot"></span>New Brief</div>'
+    '<div class="vh-h2">What are you preparing for?</div>'
+    '<div class="vh-sub">Choose a mode, name your subject, and Vantage builds a structured brief in seconds.</div>',
+    unsafe_allow_html=True,
+)
+
+mode = st.segmented_control(
+    "Mode", ["Research a company", "Analyze a job description"],
+    default="Research a company", label_visibility="collapsed",
+)
+if not mode:
+    mode = "Research a company"
 
 user_text = ""
 uploaded_file = None
 user_context = ""
 
-if mode == "Research a company":
-    user_text = st.text_area("Company Name", placeholder="Enter a company name (e.g., Apple)", height=100)
-    user_context = st.text_input("Your goal (optional)", placeholder="e.g., interviewing for a strategy analyst role")
-    button_label = "Generate Research Brief"
-else:
-    uploaded_file = st.file_uploader("Upload a job description (PDF, Word, or .txt) — optional", type=["pdf", "docx", "txt"])
-    st.caption("…or paste the job description below instead.")
-    user_text = st.text_area("Job Description", placeholder="Paste the full job description here", height=170)
-    user_context = st.text_area("Your background (optional)", placeholder="Paste a short summary of your experience for tailored advice", height=110)
-    button_label = "Analyze Job Description"
 
-if st.button(button_label, type="primary"):
+def _set_company(value):
+    st.session_state["company"] = value
+
+
+with st.container(border=True):
+    if mode == "Research a company":
+        st.markdown("<div class='field-lbl'>Company name</div>", unsafe_allow_html=True)
+        user_text = st.text_input(
+            "Company name", key="company", label_visibility="collapsed",
+            placeholder="Enter a company name (e.g., Apple)",
+        )
+        chip_cols = st.columns([0.5, 1, 1, 1, 1])
+        chip_cols[0].markdown("<div class='try-lbl'>Try</div>", unsafe_allow_html=True)
+        for col, cname in zip(chip_cols[1:], ["Apple", "Nvidia", "Stripe", "Patagonia"]):
+            col.button(cname, key=f"try_{cname}", on_click=_set_company, args=(cname,), use_container_width=True)
+
+        st.markdown("<div class='field-lbl' style='margin-top:1.1rem;'>Your goal · optional</div>", unsafe_allow_html=True)
+        goal = st.segmented_control(
+            "Goal", ["Interview prep", "Networking", "Client meeting", "Investor research"],
+            default=None, label_visibility="collapsed",
+        )
+        custom_goal = st.text_input(
+            "Custom goal", key="custom_goal", label_visibility="collapsed",
+            placeholder="…or describe your goal in your own words",
+        )
+        goal_map = {
+            "Interview prep": "preparing for a job interview",
+            "Networking": "preparing for a networking conversation",
+            "Client meeting": "preparing for a client meeting",
+            "Investor research": "researching as a potential investor",
+        }
+        if custom_goal.strip():
+            user_context = custom_goal.strip()
+        elif goal:
+            user_context = goal_map.get(goal, "")
+    else:
+        uploaded_file = st.file_uploader("Upload a job description (PDF, Word, or .txt) — optional", type=["pdf", "docx", "txt"])
+        st.caption("…or paste the job description below instead.")
+        user_text = st.text_area("Job Description", label_visibility="collapsed",
+                                  placeholder="Paste the full job description here", height=170)
+        user_context = st.text_area("Your background (optional)", label_visibility="collapsed",
+                                     placeholder="Paste a short summary of your experience for tailored advice", height=110)
+
+go = st.button("Generate brief", type="primary")
+st.markdown("<div class='vh-help'>~15 seconds · everything stays editable after</div>", unsafe_allow_html=True)
+
+if go:
     final_input = ""
     error_shown = False
     if mode == "Analyze a job description" and uploaded_file is not None:
@@ -423,26 +476,26 @@ if st.button(button_label, type="primary"):
                 st.error(f"Error: {e}")
 
 if "brief" in st.session_state:
+    st.divider()
     if st.session_state.get("brief_mode") == "Research a company":
-        fallback = st.session_state.get("brief_input", "Company")
-        html_out = build_dashboard_html(
-            st.session_state["brief"],
-            st.session_state.get("brief_meta") or {},
-            st.session_state.get("financials"),
-            fallback,
+        st.markdown(
+            build_dashboard_html(
+                st.session_state["brief"],
+                st.session_state.get("brief_meta") or {},
+                st.session_state.get("financials"),
+                st.session_state.get("brief_input", "Company"),
+            ),
+            unsafe_allow_html=True,
         )
-        st.markdown(html_out, unsafe_allow_html=True)
     else:
-        # Job-description mode: dark section cards only
         import markdown as md
-        st.markdown('<div class="vh-eyebrow"><span class="vh-dot"></span>Interview Prep</div>'
-                    '<div class="vh-title">Job Description Analysis</div>', unsafe_allow_html=True)
-        cards = '<div class="vh-grid">'
+        out = ['<div class="vh-eyebrow"><span class="vh-dot"></span>Interview Prep</div>'
+               '<div class="vh-title">Job Description Analysis</div><div class="vh-grid">']
         for title, body in parse_sections(st.session_state["brief"]):
             inner = md.markdown(body, extensions=["extra"]) if body else ""
-            cards += f'<div class="vh-card"><h3>{html.escape(title)}</h3>{inner}</div>'
-        cards += '</div><div class="vh-foot">AI-generated · verify key facts.</div>'
-        st.markdown(cards, unsafe_allow_html=True)
+            out.append(f'<div class="vh-card"><h3>{html.escape(title)}</h3>{inner}</div>')
+        out.append('</div><div class="vh-foot">AI-generated · verify key facts.</div>')
+        st.markdown("\n".join(out), unsafe_allow_html=True)
 
     if st.session_state.get("brief_mode") == "Research a company":
         raw_name = st.session_state.get("brief_input", "company")
