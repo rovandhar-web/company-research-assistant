@@ -1,8 +1,26 @@
 import streamlit as st
 from openai import OpenAI
-import os
 
-api_key = st.secrets["OPENROUTER_API_KEY"]
+# Page config (must be the first Streamlit command)
+st.set_page_config(
+    page_title="Company Research Assistant",
+    page_icon="📊",
+    layout="centered"
+)
+
+# --- Load the API key safely ---
+# If the key is missing, show a friendly message instead of crashing the whole app.
+try:
+    api_key = st.secrets["OPENROUTER_API_KEY"]
+except Exception:
+    api_key = None
+
+if not api_key:
+    st.error(
+        "⚠️ This app isn't fully configured yet — the OpenRouter API key is missing. "
+        "If you're the owner, add OPENROUTER_API_KEY under your app's Settings → Secrets."
+    )
+    st.stop()
 
 # Configure OpenRouter client
 client = OpenAI(
@@ -10,16 +28,8 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1"
 )
 
-# Page config
-st.set_page_config(
-    page_title="Company Research Assistant",
-    page_icon="📊",
-    layout="centered"
-)
-
 # Title
 st.title("📊 Company Research Assistant")
-
 st.markdown(
     "Generate a structured company research brief for interviews, networking, and client meetings."
 )
@@ -33,15 +43,11 @@ user_input = st.text_area(
 
 # Button
 if st.button("Generate Research Brief"):
-
     if not user_input.strip():
         st.warning("Please enter a company name or job description.")
-
     else:
-
         prompt = f"""
 You are an expert business research analyst.
-
 Create a concise one-page research brief.
 
 Input:
@@ -69,11 +75,8 @@ Format EXACTLY using these sections:
 
 Keep the output practical, concise, and interview-focused.
 """
-
         try:
-
             with st.spinner("Generating research brief..."):
-
                 response = client.chat.completions.create(
                     model="deepseek/deepseek-chat-v3-0324",
                     messages=[
@@ -83,11 +86,8 @@ Keep the output practical, concise, and interview-focused.
                         }
                     ]
                 )
-
                 result = response.choices[0].message.content
-
                 st.markdown(result)
-
         except Exception as e:
             st.error(f"Error: {e}")
 
