@@ -31,21 +31,62 @@ client = OpenAI(
 # Title
 st.title("📊 Company Research Assistant")
 st.markdown(
-    "Generate a structured company research brief for interviews, networking, and client meetings."
+    "Research a company or analyze a job description, and get a structured brief "
+    "for interviews, networking, and client meetings."
 )
 
 st.divider()
 
-# Input
-user_input = st.text_area(
-    "Company Name or Job Description",
-    placeholder="Enter a company name or paste a job description",
-    height=150
+# Mode selector
+mode = st.radio(
+    "What would you like to do?",
+    ["Research a company", "Analyze a job description"],
+    horizontal=True
 )
 
+# Adapt the input box and button to the chosen mode
+if mode == "Research a company":
+    input_label = "Company Name"
+    input_placeholder = "Enter a company name (e.g., Apple)"
+    button_label = "Generate Research Brief"
+else:
+    input_label = "Job Description"
+    input_placeholder = "Paste the full job description here"
+    button_label = "Analyze Job Description"
 
-# Build the instruction prompt sent to the model
-def build_prompt(text):
+user_input = st.text_area(input_label, placeholder=input_placeholder, height=180)
+
+
+# Build the instruction prompt based on the chosen mode
+def build_prompt(text, selected_mode):
+    if selected_mode == "Analyze a job description":
+        return f"""
+You are an expert career coach and recruiter.
+Analyze the following job description and create a concise preparation brief
+to help a candidate prepare for applying and interviewing.
+
+Job description:
+{text}
+
+Format EXACTLY using these sections:
+
+## Role Expectations
+- 3-5 bullet points on what the role involves and the level expected
+
+## Key Skills & Qualifications
+- 3-5 bullet points on the most important skills and experience sought
+
+## Interview Focus Areas
+- 3-5 bullet points on what is likely to be tested or emphasized
+
+## Likely Interview Questions
+- 3-5 questions the candidate may be asked
+
+## Smart Questions to Ask
+- Exactly 3 thoughtful questions for the candidate to ask the interviewer
+
+Keep the output practical, concise, and interview-focused.
+"""
     return f"""
 You are an expert business research analyst.
 Create a concise one-page research brief.
@@ -78,22 +119,22 @@ Keep the output practical, concise, and interview-focused.
 
 
 # Generate button
-if st.button("Generate Research Brief", type="primary"):
+if st.button(button_label, type="primary"):
     if not user_input.strip():
-        st.warning("Please enter a company name or job description.")
+        st.warning("Please enter a company name or paste a job description.")
     else:
         try:
-            with st.spinner("Generating research brief..."):
+            with st.spinner("Working on it..."):
                 response = client.chat.completions.create(
                     model="deepseek/deepseek-chat-v3-0324",
                     messages=[
-                        {"role": "user", "content": build_prompt(user_input)}
+                        {"role": "user", "content": build_prompt(user_input, mode)}
                     ]
                 )
                 result = response.choices[0].message.content
-                # Save the brief so it stays on screen and can be downloaded
                 st.session_state["brief"] = result
                 st.session_state["brief_input"] = user_input.strip()
+                st.session_state["brief_mode"] = mode
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -103,10 +144,13 @@ if "brief" in st.session_state:
     st.markdown(st.session_state["brief"])
     st.caption("⚠️ AI-generated — please verify important facts before relying on them.")
 
-    # Build a clean filename from whatever the user searched
-    raw_name = st.session_state.get("brief_input", "research")
-    safe_name = "".join(c if c.isalnum() else "_" for c in raw_name).strip("_")[:40]
-    file_name = f"{safe_name or 'research'}_brief.md"
+    # Choose a sensible file name based on the mode used
+    if st.session_state.get("brief_mode") == "Research a company":
+        raw_name = st.session_state.get("brief_input", "company")
+        safe_name = "".join(c if c.isalnum() else "_" for c in raw_name).strip("_")[:40]
+        file_name = f"{safe_name or 'company'}_brief.md"
+    else:
+        file_name = "job_description_analysis.md"
 
     col1, col2 = st.columns(2)
     with col1:
@@ -120,6 +164,7 @@ if "brief" in st.session_state:
         if st.button("🗑️ Clear"):
             st.session_state.pop("brief", None)
             st.session_state.pop("brief_input", None)
+            st.session_state.pop("brief_mode", None)
             st.rerun()
 
 # Footer
