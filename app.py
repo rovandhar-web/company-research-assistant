@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 from openai import OpenAI
 
@@ -8,9 +9,55 @@ st.set_page_config(
     layout="centered"
 )
 
-# Small cosmetic touch: hide Streamlit's default menu and footer for a cleaner look
+# ---------------- Styling ----------------
 st.markdown(
-    "<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;}</style>",
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    /* Hide default Streamlit chrome */
+    #MainMenu, footer, header {visibility: hidden;}
+
+    /* Base typography + spacing */
+    html, body, [class*="css"], .stMarkdown, .stTextInput, .stTextArea, .stRadio {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .block-container {max-width: 820px; padding-top: 3rem; padding-bottom: 4rem;}
+
+    /* Hero */
+    .hero {margin-bottom: 2.5rem;}
+    .hero h1 {
+        font-size: 2.7rem; font-weight: 700; letter-spacing: -0.03em;
+        color: #1D1D1F; margin: 0 0 0.6rem 0; line-height: 1.05;
+    }
+    .hero p {
+        font-size: 1.08rem; color: #6E6E73; margin: 0; line-height: 1.55;
+        max-width: 640px;
+    }
+
+    /* Section cards */
+    .brief-card {
+        background: #FFFFFF;
+        border: 1px solid #EFE7DD;
+        border-left: 4px solid #C2552F;
+        border-radius: 14px;
+        padding: 1.4rem 1.7rem;
+        margin: 1.1rem 0;
+        box-shadow: 0 1px 4px rgba(60, 40, 20, 0.05);
+    }
+    .brief-card h3 {
+        margin: 0 0 0.7rem 0; font-size: 1.2rem; font-weight: 700;
+        color: #1D1D1F; letter-spacing: -0.01em;
+    }
+    .brief-card ul, .brief-card ol {margin: 0; padding-left: 1.15rem;}
+    .brief-card li {margin-bottom: 0.45rem; line-height: 1.6; color: #3A3A3C;}
+    .brief-card p {line-height: 1.6; color: #3A3A3C; margin: 0 0 0.5rem 0;}
+    .brief-title {
+        font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em;
+        color: #1D1D1F; margin: 0.5rem 0 1.2rem 0;
+    }
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -59,7 +106,7 @@ to help a candidate prepare for applying and interviewing.
 Job description:
 {text}
 
-Format EXACTLY using these sections (put '## ' before each heading):
+Format using these sections, each starting with '## ' on its own line:
 
 ## Role Expectations
 - 3-5 bullet points on what the role involves and the level expected
@@ -81,12 +128,13 @@ Format EXACTLY using these sections (put '## ' before each heading):
 The candidate shared this about their own background:
 {user_context}
 
-Add one FINAL section tailored to them:
+Add one FINAL section starting with '## ':
 
 ## How You Fit & What to Emphasize
-- 3-5 specific, honest points: where their background fits the role, any gaps to address, and what to emphasize in their application and interview
+- 3-5 specific, honest points: where their background fits the role, any gaps to address, and what to emphasize
 """ if user_context.strip() else ""
-        return base + tail + "\n\nKeep the output practical, concise, and interview-focused."
+        rules = "\n\nIMPORTANT: Do not add any title, intro, or closing remarks. Output only the '## ' sections. Keep it practical, concise, and interview-focused."
+        return base + tail + rules
 
     base = f"""
 You are an expert business research analyst.
@@ -95,7 +143,7 @@ Create a concise one-page research brief.
 Input:
 {text}
 
-Format EXACTLY using these sections (put '## ' before each heading):
+Format using these sections, each starting with '## ' on its own line:
 
 ## Company Overview
 - 3-5 bullet points
@@ -120,75 +168,63 @@ Format EXACTLY using these sections (put '## ' before each heading):
 The user shared this about why they're researching this company:
 {user_context}
 
-Add one FINAL section tailored to them:
+Add one FINAL section starting with '## ':
 
 ## How This Maps to Your Goal
 - 3-5 specific points connecting the company's situation to their stated goal, and how to use them in an interview or meeting
 """ if user_context.strip() else ""
-    return base + tail + "\n\nKeep the output practical, concise, and interview-focused."
+    rules = "\n\nIMPORTANT: Do not add any title, intro, or closing remarks. Output only the '## ' sections. Keep it practical, concise, and interview-focused."
+    return base + tail + rules
 
 
-# Pick an icon for a section based on its title
-SECTION_ICONS = {
-    "company overview": "🏢",
-    "business model": "💰",
-    "recent developments": "📰",
-    "key challenges": "⚠️",
-    "competitive landscape": "⚔️",
-    "smart questions": "❓",
-    "role expectations": "🎯",
-    "key skills": "🛠️",
-    "interview focus": "🔍",
-    "likely interview questions": "💬",
-    "how you fit": "🤝",
-    "how this maps": "🧭",
-}
-
-
-def icon_for(title):
-    t = title.lower()
-    for key, emoji in SECTION_ICONS.items():
-        if key in t:
-            return emoji
-    return "📌"
+def parse_sections(text):
+    """Split a markdown brief into (title, body) pairs at any '#' heading line."""
+    sections = []
+    title = None
+    body = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            heading = stripped.lstrip("#").strip()
+            if heading:
+                if title is not None:
+                    sections.append((title, "\n".join(body).strip()))
+                title = heading
+                body = []
+                continue
+        if title is not None:
+            body.append(line)
+    if title is not None:
+        sections.append((title, "\n".join(body).strip()))
+    return sections
 
 
 def render_brief(markdown_text):
-    """Split the brief into '## ' sections and show each as its own card."""
-    sections = []
-    current_title = None
-    current_body = []
-    for line in markdown_text.split("\n"):
-        if line.strip().startswith("## "):
-            if current_title is not None:
-                sections.append((current_title, "\n".join(current_body).strip()))
-            current_title = line.strip()[3:].strip()
-            current_body = []
-        elif current_title is not None:
-            current_body.append(line)
-    if current_title is not None:
-        sections.append((current_title, "\n".join(current_body).strip()))
-
-    if not sections:
+    """Render each section as its own styled card."""
+    try:
+        import markdown as md
+        sections = parse_sections(markdown_text)
+        if not sections:
+            st.markdown(markdown_text)
+            return
+        for title, body in sections:
+            body_html = md.markdown(body, extensions=["extra"]) if body else ""
+            card = (
+                f'<div class="brief-card"><h3>{html.escape(title)}</h3>{body_html}</div>'
+            )
+            st.markdown(card, unsafe_allow_html=True)
+    except Exception:
         st.markdown(markdown_text)
-        return
-
-    for title, body in sections:
-        with st.container(border=True):
-            st.markdown(f"### {icon_for(title)} {title}")
-            if body:
-                st.markdown(body)
 
 
 # ---------------- UI ----------------
 
-st.title("📊 Company Research Assistant")
 st.markdown(
-    "Research a company or analyze a job description, and get a structured brief "
-    "for interviews, networking, and client meetings."
+    '<div class="hero"><h1>Company Research Assistant</h1>'
+    '<p>Research a company or analyze a job description, and get a structured, '
+    'tailored brief for interviews, networking, and client meetings.</p></div>',
+    unsafe_allow_html=True,
 )
-
-st.divider()
 
 # Mode selector
 mode = st.radio(
@@ -266,7 +302,7 @@ if st.button(button_label, type="primary"):
 
 # Show the brief (if one exists), with download and clear options
 if "brief" in st.session_state:
-    st.divider()
+    st.markdown("<div class='brief-title'>Your Brief</div>", unsafe_allow_html=True)
     render_brief(st.session_state["brief"])
     st.caption("⚠️ AI-generated — please verify important facts before relying on them.")
 
@@ -291,7 +327,3 @@ if "brief" in st.session_state:
             st.session_state.pop("brief_input", None)
             st.session_state.pop("brief_mode", None)
             st.rerun()
-
-# Footer
-st.markdown("---")
-st.caption("Built by Rovan Dhar")
