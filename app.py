@@ -2,7 +2,24 @@ import html
 import streamlit as st
 from openai import OpenAI
 
-st.set_page_config(page_title="Vantage — Company Research", page_icon="📊", layout="centered")
+
+def _make_icon():
+    """Draw the Vantage logo (mint tile + ascending bars) for use as the browser-tab icon."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([8, 8, 248, 248], radius=56, fill=(52, 224, 161, 255))
+    for x_left, top in [(68, 140), (114, 110), (160, 80)]:
+        d.rounded_rectangle([x_left, top, x_left + 28, 188], radius=6, fill=(6, 35, 26, 255))
+    return img
+
+
+try:
+    PAGE_ICON = _make_icon()
+except Exception:
+    PAGE_ICON = "📊"
+
+st.set_page_config(page_title="Vantage — Company Research", page_icon=PAGE_ICON, layout="centered")
 
 DASHBOARD_CSS = """
 <style>
