@@ -28,33 +28,20 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1"
 )
 
-# Title
-st.title("📊 Company Research Assistant")
-st.markdown(
-    "Research a company or analyze a job description, and get a structured brief "
-    "for interviews, networking, and client meetings."
-)
 
-st.divider()
-
-# Mode selector
-mode = st.radio(
-    "What would you like to do?",
-    ["Research a company", "Analyze a job description"],
-    horizontal=True
-)
-
-# Adapt the input box and button to the chosen mode
-if mode == "Research a company":
-    input_label = "Company Name"
-    input_placeholder = "Enter a company name (e.g., Apple)"
-    button_label = "Generate Research Brief"
-else:
-    input_label = "Job Description"
-    input_placeholder = "Paste the full job description here"
-    button_label = "Analyze Job Description"
-
-user_input = st.text_area(input_label, placeholder=input_placeholder, height=180)
+# Read text from an uploaded PDF, Word (.docx) or .txt file
+def extract_text_from_upload(file):
+    name = file.name.lower()
+    if name.endswith(".pdf"):
+        from pypdf import PdfReader
+        reader = PdfReader(file)
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    if name.endswith(".docx"):
+        import docx
+        document = docx.Document(file)
+        return "\n".join(p.text for p in document.paragraphs)
+    # plain text file
+    return file.read().decode("utf-8", errors="ignore")
 
 
 # Build the instruction prompt based on the chosen mode
@@ -118,25 +105,79 @@ Keep the output practical, concise, and interview-focused.
 """
 
 
+# Title
+st.title("📊 Company Research Assistant")
+st.markdown(
+    "Research a company or analyze a job description, and get a structured brief "
+    "for interviews, networking, and client meetings."
+)
+
+st.divider()
+
+# Mode selector
+mode = st.radio(
+    "What would you like to do?",
+    ["Research a company", "Analyze a job description"],
+    horizontal=True
+)
+
+# Input area depends on the chosen mode
+user_text = ""
+uploaded_file = None
+
+if mode == "Research a company":
+    user_text = st.text_area(
+        "Company Name",
+        placeholder="Enter a company name (e.g., Apple)",
+        height=120
+    )
+    button_label = "Generate Research Brief"
+else:
+    uploaded_file = st.file_uploader(
+        "Upload a job description (PDF, Word, or .txt) — optional",
+        type=["pdf", "docx", "txt"]
+    )
+    st.caption("…or paste the job description below instead.")
+    user_text = st.text_area(
+        "Job Description",
+        placeholder="Paste the full job description here",
+        height=180
+    )
+    button_label = "Analyze Job Description"
+
 # Generate button
 if st.button(button_label, type="primary"):
-    if not user_input.strip():
-        st.warning("Please enter a company name or paste a job description.")
-    else:
+    final_input = ""
+    error_shown = False
+
+    # In JD mode, prefer an uploaded file; otherwise use the typed/pasted text
+    if mode == "Analyze a job description" and uploaded_file is not None:
         try:
-            with st.spinner("Working on it..."):
-                response = client.chat.completions.create(
-                    model="deepseek/deepseek-chat-v3-0324",
-                    messages=[
-                        {"role": "user", "content": build_prompt(user_input, mode)}
-                    ]
-                )
-                result = response.choices[0].message.content
-                st.session_state["brief"] = result
-                st.session_state["brief_input"] = user_input.strip()
-                st.session_state["brief_mode"] = mode
+            final_input = extract_text_from_upload(uploaded_file)
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Sorry, I couldn't read that file. Please try pasting the text instead. ({e})")
+            error_shown = True
+    else:
+        final_input = user_text
+
+    if not error_shown:
+        if not final_input.strip():
+            st.warning("Please enter a company name, or paste / upload a job description.")
+        else:
+            try:
+                with st.spinner("Working on it..."):
+                    response = client.chat.completions.create(
+                        model="deepseek/deepseek-chat-v3-0324",
+                        messages=[
+                            {"role": "user", "content": build_prompt(final_input, mode)}
+                        ]
+                    )
+                    result = response.choices[0].message.content
+                    st.session_state["brief"] = result
+                    st.session_state["brief_input"] = final_input.strip()
+                    st.session_state["brief_mode"] = mode
+            except Exception as e:
+                st.error(f"Error: {e}")
 
 # Show the brief (if one exists), with download and clear options
 if "brief" in st.session_state:
